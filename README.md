@@ -2,7 +2,7 @@
 
 A lightweight utility that changes your Windows Terminal background color based on Claude Code's current state. Glance at a tab and instantly know whether Claude is thinking, waiting for your input, or idle — no need to read any text.
 
-![gif showing the color of the terminal changing to green](../color-change.gif)
+![gif showing the color of the terminal changing to green](./color-change.gif)
 
 ## How It Works
 
