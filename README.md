@@ -1,8 +1,8 @@
 # Claude Code CLI — Terminal Background Watcher for Windows
 
-A lightweight utility that changes your Windows Terminal background color based on Claude Code's current state. Glance at a tab and instantly know whether Claude is thinking, waiting for your input, or idle — no need to read any text.
-
 ![gif showing the color of the terminal changing to green](./color-change.gif)
+
+A lightweight utility that changes your Windows Terminal background color based on Claude Code's current state. Glance at a tab and instantly know whether Claude is thinking, waiting for your input, or idle — no need to read any text.
 
 ## How It Works
 
@@ -13,6 +13,9 @@ Claude Code fires lifecycle hooks that write the current state to a small temp f
 | **Idle** | `#000000` (black) | Session starts, or Claude finishes a response |
 | **Thinking** | `#003300` (dark green) | You submit a prompt |
 | **Input needed** | `#332200` (dark amber) | Claude asks for permission or input |
+| **Error** | `#330000` (dark red) | An API error ended the turn |
+| **Subagent** | `#003333` (dark teal) | A background agent is running |
+| **Compacting** | `#333300` (dark yellow) | Context compaction in progress — nearing context limit |
 | **Session ended** | `#0C0C0C` (default) | Claude session closes — resets to your normal color |
 
 Each terminal tab tracks its own session independently via `$env:WT_SESSION`.
@@ -21,7 +24,7 @@ Each terminal tab tracks its own session independently via `$env:WT_SESSION`.
 
 - [Windows Terminal](https://aka.ms/terminal) (the OSC 11 sequences require it — cmd.exe and legacy conhost won't work)
 - PowerShell 5.1+
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed via **npm** (the native installer uses a different path; adjust the wrapper function accordingly)
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and available on your `PATH`
 
 ## Installation
 
@@ -77,6 +80,61 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
         ]
       }
     ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "\"error\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "\"subagent\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "\"thinking\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "\"compact\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "\"thinking\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+          }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "hooks": [
@@ -101,6 +159,9 @@ param(
     [string]$IdleColor     = "#000000",
     [string]$ThinkingColor = "#003300",
     [string]$InputColor    = "#332200",
+    [string]$ErrorColor    = "#330000",
+    [string]$SubagentColor = "#003333",
+    [string]$CompactColor  = "#333300",
     [string]$DefaultColor  = "#0C0C0C"
 )
 
@@ -116,7 +177,7 @@ $runspace = [runspacefactory]::CreateRunspace()
 $runspace.Open()
 
 $ps = [powershell]::Create().AddScript({
-    param($stateFile, $IdleColor, $ThinkingColor, $InputColor, $DefaultColor)
+    param($stateFile, $IdleColor, $ThinkingColor, $InputColor, $ErrorColor, $SubagentColor, $CompactColor, $DefaultColor)
 
     $esc = [char]27
     $bel = [char]7
@@ -130,6 +191,9 @@ $ps = [powershell]::Create().AddScript({
                     "thinking" { $ThinkingColor }
                     "idle"     { $IdleColor }
                     "input"    { $InputColor }
+                    "error"    { $ErrorColor }
+                    "subagent" { $SubagentColor }
+                    "compact"  { $CompactColor }
                     "reset"    { $DefaultColor }
                     default    { $null }
                 }
@@ -146,6 +210,9 @@ $ps = [powershell]::Create().AddScript({
     IdleColor     = $IdleColor
     ThinkingColor = $ThinkingColor
     InputColor    = $InputColor
+    ErrorColor    = $ErrorColor
+    SubagentColor = $SubagentColor
+    CompactColor  = $CompactColor
     DefaultColor  = $DefaultColor
 })
 
@@ -176,7 +243,7 @@ Add this to `C:\Users\<username>\Documents\WindowsPowerShell\Microsoft.PowerShel
 function claude {
     . "$env:USERPROFILE\.claude\bg-watcher.ps1"
 
-    & "C:\Program Files\nodejs\claude.ps1" @args
+    & claude.cmd @args
 
     if ($global:ClaudeBgPs) {
         $global:ClaudeBgPs.Stop()
@@ -206,10 +273,21 @@ To apply in an already-open shell without restarting it:
 The watcher accepts parameters for each state color. To use your own palette, edit the `claude` wrapper function to pass them:
 
 ```powershell
-. "$env:USERPROFILE\.claude\bg-watcher.ps1" -IdleColor "#1a1a2e" -ThinkingColor "#0f3460" -InputColor "#533a1e" -DefaultColor "#0C0C0C"
+. "$env:USERPROFILE\.claude\bg-watcher.ps1" -IdleColor "#1a1a2e" -ThinkingColor "#0f3460" -InputColor "#533a1e" -ErrorColor "#3a0f0f" -SubagentColor "#0f3a3a" -CompactColor "#3a3a0f" -DefaultColor "#0C0C0C"
 ```
 
 Colors are hex strings (`#RRGGBB`). The `DefaultColor` is what the terminal resets to when the session ends — match it to your Windows Terminal color scheme's background.
+
+## Troubleshooting
+
+**Background color stuck after a crash?** If the terminal process is killed (not closed cleanly), the cleanup handler won't fire. Reset manually:
+
+```powershell
+# Reset the terminal background color
+Write-Host "$([char]27)]11;#0C0C0C$([char]7)" -NoNewline
+# Remove stale state files
+Remove-Item "$env:USERPROFILE\.claude-bg-state-*"
+```
 
 ## Uninstalling
 
