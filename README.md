@@ -11,7 +11,7 @@ Claude Code fires lifecycle hooks that write the current state to a small temp f
 | State | Default Color | Trigger |
 |-------|--------------|---------|
 | **Idle** | `#000000` (black) | Session starts, or Claude finishes a response |
-| **Thinking** | `#003300` (dark green) | You submit a prompt |
+| **Thinking** | `#003300` (dark green) | You submit a prompt, approve a tool, or a subagent/compaction finishes |
 | **Input needed** | `#332200` (dark amber) | Claude asks for permission or input |
 | **Error** | `#330000` (dark red) | An API error ended the turn |
 | **Subagent** | `#003333` (dark teal) | A background agent is running |
@@ -76,6 +76,17 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
             "type": "command",
             "shell": "powershell",
             "command": "\"input\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "\"thinking\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
