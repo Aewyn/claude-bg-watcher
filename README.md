@@ -6,17 +6,17 @@ A lightweight utility that changes your Windows Terminal background color based 
 
 ## How It Works
 
-Claude Code fires lifecycle hooks that write the current state to a small temp file. A PowerShell background watcher polls that file and sends [OSC 11](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Operating-System-Commands) escape sequences to change the terminal background color in real time.
+Claude Code fires lifecycle hooks that write the hook event name to a small temp file. A PowerShell background watcher polls that file and sends [OSC 11](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Operating-System-Commands) escape sequences to change the terminal background color in real time.
 
 | State | Default Color | Trigger |
 |-------|--------------|---------|
-| **Idle** | `#000000` (black) | Session starts, or Claude finishes a response |
-| **Thinking** | `#003300` (dark green) | You submit a prompt, approve a tool, or a subagent/compaction finishes |
-| **Input needed** | `#332200` (dark amber) | Claude asks for permission or input |
-| **Error** | `#330000` (dark red) | An API error ended the turn |
-| **Subagent** | `#003333` (dark teal) | A background agent is running |
-| **Compacting** | `#333300` (dark yellow) | Context compaction in progress — nearing context limit |
-| **Session ended** | `#0C0C0C` (default) | Claude session closes — resets to your normal color |
+| **Idle** | `#000000` (black) | `SessionStart`, `Stop` — session starts or Claude finishes a response |
+| **Thinking** | `#003300` (dark green) | `UserPromptSubmit`, `PreToolUse`, `SubagentStop`, `PostCompact` — you submit a prompt, approve a tool, or a subagent/compaction finishes |
+| **Input needed** | `#332200` (dark amber) | `Notification` — Claude asks for permission or input |
+| **Error** | `#330000` (dark red) | `StopFailure` — an API error ended the turn |
+| **Subagent** | `#003333` (dark teal) | `SubagentStart` — a background agent is running |
+| **Compacting** | `#333300` (dark yellow) | `PreCompact` — context compaction in progress, nearing context limit |
+| **Session ended** | `#0C0C0C` (default) | `SessionEnd` — Claude session closes, resets to your normal color |
 
 Each terminal tab tracks its own session independently via `$env:WT_SESSION`.
 
@@ -41,7 +41,7 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"thinking\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"UserPromptSubmit\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
@@ -52,7 +52,7 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"idle\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"Stop\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
@@ -63,19 +63,19 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"idle\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"SessionStart\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
     ],
     "Notification": [
       {
-        "matcher": "idle_prompt|permission_prompt|elicitation_dialog",
+        "matcher": "permission_prompt|elicitation_dialog",
         "hooks": [
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"input\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"Notification\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
@@ -86,7 +86,7 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"thinking\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"PreToolUse\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
@@ -97,7 +97,7 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"error\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"StopFailure\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
@@ -108,7 +108,7 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"subagent\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"SubagentStart\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
@@ -119,7 +119,7 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"thinking\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"SubagentStop\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
@@ -130,7 +130,7 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"compact\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"PreCompact\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
@@ -141,7 +141,7 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"thinking\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"PostCompact\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
@@ -152,7 +152,7 @@ Merge the following into `C:\Users\<username>\.claude\settings.json`. If you alr
           {
             "type": "command",
             "shell": "powershell",
-            "command": "\"reset\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
+            "command": "\"SessionEnd\" | Out-File -NoNewline \"$env:USERPROFILE\\.claude-bg-state-$env:WT_SESSION\""
           }
         ]
       }
@@ -177,7 +177,7 @@ param(
 )
 
 $stateFile = "$env:USERPROFILE\.claude-bg-state-$env:WT_SESSION"
-"idle" | Out-File -NoNewline $stateFile
+"SessionStart" | Out-File -NoNewline $stateFile
 
 $global:ClaudeBgDefaultColor = $DefaultColor
 $global:ClaudeBgStateFile = $stateFile
@@ -192,21 +192,25 @@ $ps = [powershell]::Create().AddScript({
 
     $esc = [char]27
     $bel = [char]7
-    $lastState = "idle"
+    $lastState = "SessionStart"
 
     while ($true) {
         if (Test-Path $stateFile) {
             $state = (Get-Content $stateFile -Raw).Trim()
             if ($state -ne $lastState) {
                 $color = switch ($state) {
-                    "thinking" { $ThinkingColor }
-                    "idle"     { $IdleColor }
-                    "input"    { $InputColor }
-                    "error"    { $ErrorColor }
-                    "subagent" { $SubagentColor }
-                    "compact"  { $CompactColor }
-                    "reset"    { $DefaultColor }
-                    default    { $null }
+                    "UserPromptSubmit" { $ThinkingColor }
+                    "PreToolUse"       { $ThinkingColor }
+                    "SubagentStop"     { $ThinkingColor }
+                    "PostCompact"      { $ThinkingColor }
+                    "SessionStart"     { $IdleColor }
+                    "Stop"             { $IdleColor }
+                    "Notification"     { $InputColor }
+                    "StopFailure"      { $ErrorColor }
+                    "SubagentStart"    { $SubagentColor }
+                    "PreCompact"       { $CompactColor }
+                    "SessionEnd"       { $DefaultColor }
+                    default            { $null }
                 }
                 if ($color) {
                     [Console]::Write("$esc]11;$color$bel")
